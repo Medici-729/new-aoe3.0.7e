@@ -20,13 +20,13 @@ static int stage=1;
 static int terrainCache[MAP_SIZE][MAP_SIZE];
 
 //距离计算函数
-static double calDistance(double dr1,double ur1,double dr2,double ur2){
+double  UsrAI::calDistance(double dr1,double ur1,double dr2,double ur2){
     double ddr=dr1-dr2;
     double dur=ur1-ur2;
     return sqrt(ddr*ddr+dur*dur);
 }
 //块坐标转换为细节坐标
-static double blockToDetail(int block) {
+double UsrAI::blockToDetail(int block) {
     return block * BLOCKSIDELENGTH + BLOCKSIDELENGTH / 2.0;
 }
 //地图缓存更新
@@ -81,7 +81,7 @@ void UsrAI:: updateTerrainCache(const tagInfo& info) {
      }//标记单位(3)
 }
 //找空地
-static bool findEmptyBlock(int& outDR, int& outUR, int size) {
+bool UsrAI::findEmptyBlock(int& outDR, int& outUR, int size) {
     for (int i = 0; i <= MAP_SIZE - size; i++) {
         for (int j = 0; j <= MAP_SIZE - size; j++) {
             bool ok = true;
@@ -100,7 +100,7 @@ static bool findEmptyBlock(int& outDR, int& outUR, int size) {
     return false;
 }
 //阶段切换
-static void updateStage(tagInfo& info) {
+void UsrAI::updateStage(tagInfo& info) {
     int frame=info.GameFrame;
     if(frame<6000) {
         stage=stageExplore;

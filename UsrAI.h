@@ -31,9 +31,17 @@ private:
         tagUsrGame.clearInsRet();
     }
     /*##########DO NOT MODIFY THE CODE IN THE CLASS##########*/
-
-
-
+    double  calDistance(double dr1, double ur1, double dr2, double ur2);
+    double blockToDetail(int block);
+    void updateTerrainCache(const tagInfo& info);
+    bool findEmptyBlock(int& outDR, int& outUR, int size);
+    void updateStage(const tagInfo& info);
+    void cutTree(const tagInfo& info, int num, int resourceType);
+    void hunting(const tagInfo& info, int targetCount);
+    void buildBuilding(const tagInfo& info, int buildingType, int num);
+    void armymanage(const tagInfo& info);
+    void priestManage(const tagInfo& info);
+    void priestFindway(const tagInfo& info, int priestSN, double priestDR, double priestUR);
 };
 
 #endif
