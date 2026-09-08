@@ -30,7 +30,7 @@ double UsrAI::blockToDetail(int block) {
     return block * BLOCKSIDELENGTH + BLOCKSIDELENGTH / 2.0;
 }
 //地图缓存更新
-void UsrAI:: updateTerrainCache(const tagInfo& info) {
+void UsrAI:: updateTerrainCache(tagInfo& info) {
     for (int i=0;i<MAP_SIZE;i++){
         for(int j=0;j<MAP_SIZE;j++){ terrainCache[i][j]=-1;}// 初始化所有格子为 -1
     }
@@ -365,7 +365,7 @@ void UsrAI::processData ()
      int huntNum=2;
      int buildNum=1;
      int stonedigNum=1;
-     cutTree(info,woodcutNum,RESOURCE_WOOD);
+     cutTree(info,woodcutNum,RESOURCE_TREE);
      hunting(info, huntNum);
 
 
