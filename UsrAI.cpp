@@ -346,4 +346,14 @@ void UsrAI::processData ()
      if (info.GameFrame % 5 != 0) return;
      updateTerrainCache(info);
      updateStage(info);
+     priestManage(info);
+     int woodcutNUm=2;
+     int berrypickNum=2;
+     int huntNUm=2;
+     int buildNum=1;
+     int stonedigNum=1;
+     cutTree(info,woodcutNum,RESOURCE_WOOD);
+     hunting(info, huntNUm);
+     
+
 }
