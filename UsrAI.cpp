@@ -367,7 +367,7 @@ void UsrAI::processData ()
      int buildNum=1;
      int stonedigNum=1;
      cutTree(info,woodcutNum,RESOURCE_TREE);
-     cutTree(info,berrypickNum,RESOURCE_BERRY):
+     cutTree(info,berrypickNum,RESOURCE_BUSH);
      cutTree(info,stonedigNum,RESOURCE_STONE);
      hunting(info, huntNum);
      
