@@ -37,7 +37,7 @@ void UsrAI:: updateTerrainCache(tagInfo& info) {
     if(info.theMap!=0){
         for(int i=0;i<MAP_SIZE;i++){
             for(int j=0;j<MAP_SIZE;j++){
-        tagTerrain& t=(*info.theMap)[i][j];
+        auto& t=(*info.theMap)[i][j];
         if(t.type==MAPPATTERN_GRASS&&t.height>=0){terrainCache[i][j]=0;}
             }
         }
@@ -282,7 +282,7 @@ void UsrAI::priestManage(tagInfo& info){
 }
 //祭司探路
 
-static void priestFindway(tagInfo& info,int priestSN,double priestDR,double priestUR){
+void UsrAI:: priestFindway(tagInfo& info,int priestSN,double priestDR,double priestUR){
     static double lastDR = -1, lastUR = -1;
     static int stuckFrames = 0;
     static int step = 0;
@@ -367,7 +367,10 @@ void UsrAI::processData ()
      int buildNum=1;
      int stonedigNum=1;
      cutTree(info,woodcutNum,RESOURCE_TREE);
+     cutTree(info,berrypickNum,RESOURCE_BERRY):
+     cutTree(info,stonedigNum,RESOURCE_STONE);
      hunting(info, huntNum);
-
+     
+     
 
 }
