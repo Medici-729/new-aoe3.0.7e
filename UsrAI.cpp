@@ -23,7 +23,7 @@ static int terrainCache[MAP_SIZE][MAP_SIZE];
 static double calDistance(double dr1,double ur1,double dr2,double ur2){
     double ddr=dr1-dr2;
     double dur=ur1-ur2;
-    return sqrt(ddr*ddr+dur*dur)
+    return sqrt(ddr*ddr+dur*dur);
 }
 //块坐标转换为细节坐标
 static double blockToDetail(int block) {
@@ -59,8 +59,8 @@ static void updateTerrainCache(const tagInfo& info) {
             case BUILDING_SIEGE:     size = 3; break;
             default:                 size = 2; break;
             }
-        for(int i=b.BlockDR;i<=b.BlockDR+size;i++){
-            for(int j=b.BlockUR;j<=b.BlockUR+size;j++){
+        for(int i=b.BlockDR;i<b.BlockDR+size&&i<MAP_SIZE;i++){
+            for(int j=b.BlockUR;j<b.BlockUR+size&&j<MAP_SIZE;j++){
                 terrainCache[i][j]=1;
             }
         }  
@@ -82,17 +82,23 @@ static void updateTerrainCache(const tagInfo& info) {
 }
 //找空地
 static bool findEmptyBlock(int& outDR, int& outUR, int size) {
-        for(int i=0;i<MAP_SIZE;i++){
-            for(int j=0;j<MAP_SIZE;j++){
-                if(terrainCache[i][j]==0){
-                 outDR=i;
-                 outUR=j;
-                 return true;
+    for (int i = 0; i <= MAP_SIZE - size; i++) {
+        for (int j = 0; j <= MAP_SIZE - size; j++) {
+            bool ok = true;
+            for (int di = 0; di < size && ok; di++) {
+                for (int dj = 0; dj < size && ok; dj++) {
+                    if (terrainCache[i+di][j+dj] != 0) ok = false;
                 }
             }
-         }
-        return false;
+            if (ok) {
+                outDR = i;
+                outUR = j;
+                return true;
+            }
+        }
     }
+    return false;
+}
 //阶段切换
 static void updateStage(tagInfo& info) {
     int frame=info.GameFrame;
@@ -118,7 +124,7 @@ static void cutTree(tagInfo& info,int num,int resourceType) {
         for(tagResource& r:info.resources){
             if(r.Type!=resourceType) continue;
             if(r.Blood<=0&&r.Cnt<=0) continue;
-            double dist=calDistance(f.DetailDR,f.DetailUR,r.DetailDR,r.DetailUR);
+            double dist=calDistance(f.DR,f.UR,r.DR,r.UR);
             if(dist<minDist){
                 minDist=dist;
                 targetSN=r.SN;
@@ -177,12 +183,12 @@ static void buildBuilding(tagInfo& info,int buildingType,int num){
 //军队管理
 static void armymanage(tagInfo& info){
     for(tagArmy& a:info.armies){
-        if(a.sort==AT_PRIEST) continue;
+        if(a.Sort==AT_PRIEST) continue;
         if(a.Blood<=0) continue;
         if(a.NowState!=HUMAN_STATE_IDLE&&a.NowState!=HUMAN_STATE_WALKING) continue;
         int targetSN=-1;
         double minDist=1e9;
-        for(tagArmy& enenmy:info.enemy_armies){
+        for(tagArmy& enemy:info.enemy_armies){
             double d=calDistance(a.DR,a.UR,enemy.DR,enemy.UR);
             if (d > 15 * BLOCKSIDELENGTH) continue;
             if (enemy.Sort == AT_CHARIOT_ARCHER || enemy.Sort == AT_COMPOSITE_BOWMAN || enemy.Sort == AT_STONE_THROWER){
@@ -192,14 +198,15 @@ static void armymanage(tagInfo& info){
         }
         if(targetSN==-1&&!info.enemy_armies.empty()){
             for(tagArmy& enemy:info.enemy_armies){
+                double d = calDistance(a.DR, a.UR, enemy.DR, enemy.UR);
                 if (d < 15 * BLOCKSIDELENGTH && d < minDist) {
                     minDist = d;
                     targetSN = enemy.SN;
                  }
             }
         }
-        if(targetSN=-1&&stage>=stageAttack&&!info.enemy_armies.empty()){
-            for(tagArmy& enemy:info.enemy_armies){
+        if(targetSN==-1&&stage>=stageAttack&&!info.enemy_buildings.empty()){
+            for(tagBuilding& enemy : info.enemy_buildings){
                 double eDR = blockToDetail(enemy.BlockDR);
                 double eUR = blockToDetail(enemy.BlockUR);
                 double d = calDistance(a.DR, a.UR, eDR, eUR);
@@ -215,20 +222,22 @@ static void armymanage(tagInfo& info){
     }
 }
 //祭司管理：转化敌人，躲避
-void priestManage(tagInfo& info){
+static void priestManage(tagInfo& info){
     int priestSN=-1;
     double priestDR=0,priestUR=0;
+    int convetCooldown=0;
     for(tagArmy& a:info.armies){
-        if(a.sort==AT_PRIEST&&a.Blood>0){
+        if(a.Sort==AT_PRIEST&&a.Blood>0){
             priestSN=a.SN;
             priestDR=a.DR;
             priestUR=a.UR;
+            convertCooldown=a.ConvertCooldown;
             break;
         }
     }
     if(priestSN==-1) return;
     bool enemyDetected=false;
-    double enemyDR=0,eneemyUR=0;
+    double enemyDR=0,enemyUR=0;
     int enemySN=-1;
     for(tagArmy& e:info.enemy_armies){
         double d=calDistance(priestDR,priestUR,e.DR,e.UR);
@@ -272,7 +281,11 @@ void priestManage(tagInfo& info){
     }
 }
 //祭司探路
-void priestFindway(tagInfo& info,int priestSN,double priestDR,double priestUR){
+static double lastDR = -1, lastUR = -1;
+static int stuckFrames = 0;
+static int step = 0;
+static double targetDR = -1, targetUR = -1;
+static void priestFindway(tagInfo& info,int priestSN,double priestDR,double priestUR){
     int centerDR = -1, centerUR = -1;
     for (tagBuilding& b : info.buildings) {
         if (b.Type == BUILDING_CENTER) {
@@ -347,13 +360,13 @@ void UsrAI::processData ()
      updateTerrainCache(info);
      updateStage(info);
      priestManage(info);
-     int woodcutNUm=2;
+     int woodcutNum=2;
      int berrypickNum=2;
-     int huntNUm=2;
+     int huntNum=2;
      int buildNum=1;
      int stonedigNum=1;
      cutTree(info,woodcutNum,RESOURCE_WOOD);
-     hunting(info, huntNUm);
-     
+     hunting(info, huntNum);
+
 
 }
