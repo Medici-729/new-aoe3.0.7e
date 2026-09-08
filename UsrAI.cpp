@@ -30,7 +30,7 @@ static double blockToDetail(int block) {
     return block * BLOCKSIDELENGTH + BLOCKSIDELENGTH / 2.0;
 }
 //地图缓存更新
-static void updateTerrainCache(const tagInfo& info) {
+void UsrAI:: updateTerrainCache(const tagInfo& info) {
     for (int i=0;i<MAP_SIZE;i++){
         for(int j=0;j<MAP_SIZE;j++){ terrainCache[i][j]=-1;}// 初始化所有格子为 -1
     }
@@ -69,13 +69,13 @@ static void updateTerrainCache(const tagInfo& info) {
         if(r.BlockDR>=0&&r.BlockDR<MAP_SIZE&&r.BlockUR>=0&&r.BlockUR<MAP_SIZE)
         {terrainCache[r.BlockDR][r.BlockUR]=2;}
         }//标记资源(2)
-    for(tagFarmer& f=info.farmers){
-        if(f.BlockDR>=0&&f.BlockDR<MAP_SIZE&&f.BlockUR>=0&&f.BlockDR<MAP_SIZE){
+    for(tagFarmer& f:info.farmers){
+        if(f.BlockDR>=0&&f.BlockDR<MAP_SIZE&&f.BlockUR>=0&&f.BlockUR<MAP_SIZE){
          terrainCache[f.BlockDR][f.BlockUR]=3;   
         }
      }
-    for(tagArmy& a=info.armies){
-        if(a.BlockDR>=0&&a.BlockDR<MAP_SIZE&&a.BlockUR>=0&&a.BlockDR<MAP_SIZE){
+    for(tagArmy& a:info.armies){
+        if(a.BlockDR>=0&&a.BlockDR<MAP_SIZE&&a.BlockUR>=0&&a.BlockUR<MAP_SIZE){
          terrainCache[a.BlockDR][a.BlockUR]=3;   
         }
      }//标记单位(3)
@@ -113,7 +113,7 @@ static void updateStage(tagInfo& info) {
     }
 }
 //采集：砍树，采浆果，采金矿，挖石头
-static void cutTree(tagInfo& info,int num,int resourceType) {
+void  UsrAI::cutTree(tagInfo& info,int num,int resourceType) {
     int count=0;
     for(tagFarmer& f:info.farmers){
         if(f.FarmerSort!=FARMERTYPE_FARMER) continue;
@@ -138,7 +138,7 @@ static void cutTree(tagInfo& info,int num,int resourceType) {
     }    
 }
 //打猎：羚羊
-static void hunting(tagInfo& info, int targetCount) {
+void UsrAI:: hunting(tagInfo& info, int targetCount) {
     if (targetCount <= 0) return;
     int assigned = 0;
     vector<tagResource*> gazelles;
@@ -165,7 +165,7 @@ static void hunting(tagInfo& info, int targetCount) {
     }
 }
 //建筑：市镇中心，谷仓，市场，农田，兵营、靶场 、马厩
-static void buildBuilding(tagInfo& info,int buildingType,int num){
+void UsrAI:: buildBuilding(tagInfo& info,int buildingType,int num){
     int size=3;
     if(buildingType==BUILDING_HOME||buildingType==BUILDING_ARROWTOWER) size=2;
     int currentCount=0;
@@ -181,7 +181,7 @@ static void buildBuilding(tagInfo& info,int buildingType,int num){
      }
 }
 //军队管理
-static void armymanage(tagInfo& info){
+void UsrAI::armymanage(tagInfo& info){
     for(tagArmy& a:info.armies){
         if(a.Sort==AT_PRIEST) continue;
         if(a.Blood<=0) continue;
@@ -222,10 +222,10 @@ static void armymanage(tagInfo& info){
     }
 }
 //祭司管理：转化敌人，躲避
-static void priestManage(tagInfo& info){
+void UsrAI::priestManage(tagInfo& info){
     int priestSN=-1;
     double priestDR=0,priestUR=0;
-    int convetCooldown=0;
+    int convertCooldown=0;
     for(tagArmy& a:info.armies){
         if(a.Sort==AT_PRIEST&&a.Blood>0){
             priestSN=a.SN;
