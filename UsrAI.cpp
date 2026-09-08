@@ -281,11 +281,12 @@ void UsrAI::priestManage(tagInfo& info){
     }
 }
 //祭司探路
-static double lastDR = -1, lastUR = -1;
-static int stuckFrames = 0;
-static int step = 0;
-static double targetDR = -1, targetUR = -1;
+
 static void priestFindway(tagInfo& info,int priestSN,double priestDR,double priestUR){
+    static double lastDR = -1, lastUR = -1;
+    static int stuckFrames = 0;
+    static int step = 0;
+    static double targetDR = -1, targetUR = -1;
     int centerDR = -1, centerUR = -1;
     for (tagBuilding& b : info.buildings) {
         if (b.Type == BUILDING_CENTER) {
