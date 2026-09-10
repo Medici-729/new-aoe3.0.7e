@@ -389,10 +389,10 @@ void UsrAI::processData ()
      cutTree(info,stonedigNum,RESOURCE_STONE);
      cutTree(info,minedigNum,RESOURCE_GOLD);
      hunting(info, huntNum);
-     if(info.Human_MaxNum<20&&info.wood>=30){
+     if(info.Human_MaxNum<20&&info.Wood>=30){
         buildBuilding(info,BUILDING_HOME,1);
      }
-     bool homeenough=false;
+     static bool homeenough=false;
      if(info.Human_MaxNum>=20) homeenough=true;
      bool hasMarket=false;
      bool hasArmyCamp=false;
@@ -412,19 +412,25 @@ void UsrAI::processData ()
         }
     }
     //市镇中心功能实现
-    if(info.Meat>=50&&info.Human_Num<info.Human_MaxNum&&info.Human_maxNum<=20){
-        for(tagBuilding& b:info.buildings){
-            if(b.SN==centerSN&&b.Project==0){
+    int farmercount=0;
+    for(tagFarmer& f:info.farmers){
+        if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
+    }
+    static bool hasUpgraded=false;
+    for(tagBuilding& b:info.buildings){
+        if(b.SN==centerSN&&b.Project==0){
+            if(info.Meat>=50&&info.Human_Num<=info.Human_MaxNum&&farmercount<=20){
                 BuildingAction(centerSN,BUILDING_CENTER_CREATEFARMER);
                 break;
             }
         }
     }
-    if (info.civilizationStage == CIVILIZATION_TOOLAGE && info.Meat >= 800){
+    if (info.civilizationStage == CIVILIZATION_TOOLAGE && info.Meat >= 800&&!hasUpgraded) {
         if (hasMarket && (hasRange || hasStable)) {
             for (tagBuilding& b : info.buildings) {
                 if (b.SN == centerSN && b.Project == 0) {
                     BuildingAction(centerSN, BUILDING_CENTER_UPGRADE);
+                    hasUpgraded = true;
                     break;
                 }
             }
@@ -438,13 +444,13 @@ void UsrAI::processData ()
         if (!hasArmyCamp && stage >= stageDefense1 && info.Wood >= 125) {
             buildBuilding(info, BUILDING_ARMYCAMP, 1);
         }
-        if (!hasRange && stage >= stageDefense1 && info.Wood >= 150) {
+        if (!hasRange && stage >= stageDefense1 && info.Wood >= 150&&hasArmyCamp) {
             buildBuilding(info, BUILDING_RANGE, 1);
         }
-        if (!hasStable && stage >= stageDefense1 && info.Wood >= 150) {
+        if (!hasStable && stage >= stageDefense1 && info.Wood >= 150&&hasArmyCamp) {
             buildBuilding(info, BUILDING_STABLE, 1);
         }
-        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180) {
+        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180&&info.civilizationStage == CIVILIZATION_TOOLAGE) {
             buildBuilding(info, BUILDING_COLLAGE, 1);
         }
         if (info.Human_Num >= info.Human_MaxNum - 2 && info.Wood >= 30) {
@@ -452,5 +458,116 @@ void UsrAI::processData ()
         }  
     }
     //谷仓研发箭塔
-    
+    static bool hasArrowTower=false;
+    if(!hasArrowTower&&info.Meat>=50){
+        for(tagBuilding& b:info.buildings){
+            if(b.Type==BUILDING_GRANARY&&b.Project==0){
+                BuildingAction(b.SN,BUILDING_GRANARY_ARROWTOWER);
+                hasArrowTower=true;
+                break;
+            }
+        }
+    }
+    //市场研发科技
+    static bool hasWheel=false;
+    static bool hasWoodUp=false;
+    static bool hasFarmUp=false;
+    static bool hasGoldUp=false;
+    for(tagBuilding& b:info.buildings){
+        if(b.Type==BUILDING_MARKET&&b.project==0){
+            if(!hasWheel&&info.Meat>=150&&info.Wood>=100){
+                BuildingAction(b.SN, BUILDING_MARKET_WHEEL_UPGRADE);
+                hasWheel = true;
+                continue;
+            }
+            if(!hasWoodUp&&info.Meat>=120&&info.Wood>=75){
+               BuildingAction(b.SN, BUILDING_MARKET_WOOD_UPGRADE); 
+               hasWoodUp = true;
+               continue;
+            }
+            if(!hasFarmUp&&stage>=stageDefense1&&info.Meat>=150&&info.Wood>=50){
+                BuildingAction(b.SN, BUILDING_MARKET_FARM_UPGRADE);
+                hasFarmUp = true;
+                continue;
+            }
+            if(!hasGoldUp&&info.civilizationStage>=CIVILIZATION_TOOLAGE&&info.Meat>=120&&info.Wood>=100){
+                BuildingAction(b.SN, BUILDING_MARKET_GOLD_UPGRADE);
+                hasGoldUp = true;
+                continue;
+            }
+        }
+    }
+    //仓库研发攻防
+    static bool hasTool=false;
+    static bool hasDefense=false;
+    for(tagBuilding& b:info.buildings){
+        if(b.Type==BUILDING_STOCK&&b.project==0){
+            if(!hasTool&&info.Meat>=100){
+              BuildingAction(b.SN, BUILDING_STOCK_UPGRADE_USETOOL);
+              hasTool=true;
+              continue;  
+            }
+            if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.Meat>=75){
+               BuildingAction(b.SN, BUILDING_STOCK_UPGRADE_DEFENSE_INFANTRY);
+               hasDefense = true;
+               continue; 
+            }
+        }
+    }
+    //兵营训练士兵
+    static bool hasUpgradedClubman = false;
+    if(stage>=stageDefense1){
+        for(tagBuilding& b:info.buildings){
+            if(b.Type==BUILDING_ARMYCAMP&&b.project==0){
+                if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.Meat>=35&&info.Gold>=15&&info.HumanNum<info.Human_MaxNum){
+                   BuildingAction(b.SN, BUILDING_ARMYCAMP_CREATE_BROADSWORD); 
+                   continue;
+                }
+                if(info.Meat>=50&&info.HumanNum<info.Human_MaxNum){
+                   BuildingAction(b.SN, BUILDING_ARMYCAMP_CREATE_CLUBMAN);
+                   continue;
+                }
+                if(!hasUpgradedClubman&&info.civilizationStage>=CIVILIZATION_TOOLAGE&&info.Meat>=100){
+                   BuildingAction(b.SN, BUILDING_ARMYCAMP_UPGRADE_CLUBMAN);
+                   hasUpgradedClubman=true;
+                   continue; 
+                }    
+            }
+        }
+    }
+    //靶场训练弓箭手
+    for(tagBuilding& b:info.buildings){
+        if(b.Type==BUILDING_RANGE&&b.project==0){
+            if(info.HumanNum<info.Human_MaxNum&&info.Wood>=20&&info.Meat>=40){
+                BuildingAction(b.SN, BUILDING_RANGE_CREATE_BOWMAN);
+                continue;
+            }
+        }
+    }
+    //马厩训练骑兵
+    if(stage>=stageDefense2){
+        for(tagBuilding& b:info.buildings){
+            if(b.Type==BUILDING_STABLE&&b.project==0){
+                if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.HumanNum<info.Human_MaxNum&&info.Meat>=70&&info.Gold>=80){
+                    BuildingAction(b.SN, BUILDING_STABLE_CREATE_CAVALRY);
+                    continue;
+                }
+                if(info.HumanNum<=info.Human_MaxNum&&info.Meat>=60){
+                    BuildingAction(b.SN, BUILDING_STABLE_CREATE_SCOUT);
+                    continue;
+                }
+            }
+        }
+    }
+    if(stage>=stageDefense2){
+        for(tagBuilding& b:info.buildings){
+            if(b.Type==BUILDING_COLLAGE&&b.project==0){
+                if(info.HumanNum<info.Human_MaxNum&&info.Meat>=60&&info.Gold>=40){
+                    BuildingAction(b.SN, BUILDING_COLLAGE_CREATE_HOPLITE);
+                    continue;
+                }
+            }
+        }
+    }
+    armymanage(info);
 }
