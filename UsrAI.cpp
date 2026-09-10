@@ -265,33 +265,41 @@ void UsrAI::armymanage(tagInfo& info){
     }
 }
 //祭司管理：转化敌人，躲避
-void UsrAI::priestManage(tagInfo& info){
-    int priestSN=-1;
-    double priestDR=0,priestUR=0;
-    int convertCooldown=0;
-    for(tagArmy& a:info.armies){
-        if(a.Sort==AT_PRIEST&&a.Blood>0){
-            priestSN=a.SN;
-            priestDR=a.DR;
-            priestUR=a.UR;
-            convertCooldown=a.ConvertCooldown;
+void UsrAI::priestManage(tagInfo& info) {
+    // 1. 找祭司
+    int priestSN = -1;
+    double priestDR = 0, priestUR = 0;
+    int convertCooldown = 0;
+    for (tagArmy& a : info.armies) {
+        if (a.Sort == AT_PRIEST && a.Blood > 0) {
+            priestSN = a.SN;
+            priestDR = a.DR;
+            priestUR = a.UR;
+            convertCooldown = a.ConvertCooldown;
             break;
         }
     }
-    if(priestSN==-1) return;
-    bool enemyDetected=false;
-    double enemyDR=0,enemyUR=0;
-    int enemySN=-1;
-    for(tagArmy& e:info.enemy_armies){
-        double d=calDistance(priestDR,priestUR,e.DR,e.UR);
-        if(d<15*BLOCKSIDELENGTH){
-            enemyDetected=true;
-            enemyDR=e.DR;
-            enemyUR=e.UR;
-            enemySN=e.SN;
+    if (priestSN == -1) return;
+    
+    // 2. 检查敌人（提前到20格）
+    bool enemyDetected = false;
+    double enemyDR = 0, enemyUR = 0;
+    int enemySN = -1;
+    double minEnemyDist = 1e9;
+    for (tagArmy& e : info.enemy_armies) {
+        double d = calDistance(priestDR, priestUR, e.DR, e.UR);
+        if (d < 20 * BLOCKSIDELENGTH && d < minEnemyDist) {
+            minEnemyDist = d;
+            enemyDetected = true;
+            enemyDR = e.DR;
+            enemyUR = e.UR;
+            enemySN = e.SN;
         }
     }
+    
+    // 3. 有敌人 → 躲箭塔 + 转换
     if (enemyDetected) {
+        // 找最近箭塔
         double towerDR = -1, towerUR = -1;
         double minTowerDist = 1e9;
         for (tagBuilding& b : info.buildings) {
@@ -306,30 +314,53 @@ void UsrAI::priestManage(tagInfo& info){
                 }
             }
         }
+        
         if (towerDR != -1) {
-            double targetDR = towerDR - 1 * BLOCKSIDELENGTH;
-            double targetUR = towerUR - 1 * BLOCKSIDELENGTH;
-            if (minTowerDist > 3 * BLOCKSIDELENGTH) {
-                HumanMove(priestSN, targetDR, targetUR);
+            // 祭司往箭塔跑
+            if (minTowerDist > 2 * BLOCKSIDELENGTH) {
+                // 根据敌人方向，站在箭塔反方向
+                double dirDR = enemyDR - towerDR;
+                double dirUR = enemyUR - towerUR;
+                double len = sqrt(dirDR*dirDR + dirUR*dirUR);
+                if (len > 0.1) {
+                    double standDR = towerDR - (dirDR / len) * 1.5 * BLOCKSIDELENGTH;
+                    double standUR = towerUR - (dirUR / len) * 1.5 * BLOCKSIDELENGTH;
+                    HumanMove(priestSN, standDR, standUR);
+                } else {
+                    HumanMove(priestSN, towerDR, towerUR + 1.5 * BLOCKSIDELENGTH);
+                }
             } else {
-                if (convertCooldown == 0 && enemySN != -1) {
+                // 已经在箭塔旁边，检查敌人是否进射程
+                double enemyToTower = calDistance(enemyDR, enemyUR, towerDR, towerUR);
+                if (enemyToTower < 7 * BLOCKSIDELENGTH && convertCooldown == 0 && enemySN != -1) {
                     HumanAction(priestSN, enemySN);
+                }
+            }
+        } else {
+            // 没有箭塔，往TC跑
+            for (tagBuilding& b : info.buildings) {
+                if (b.Type == BUILDING_CENTER) {
+                    HumanMove(priestSN, blockToDetail(b.BlockDR), blockToDetail(b.BlockUR));
+                    break;
                 }
             }
         }
         return;
     }
-    if(stage==stageExplore){
-        priestFindway(info,priestSN,priestDR,priestUR);
-    }
+    
+    // 4. 没有敌人 → 探路
+    priestFindway(info, priestSN, priestDR, priestUR);
 }
 //祭司探路
 
-void UsrAI:: priestFindway(tagInfo& info,int priestSN,double priestDR,double priestUR){
+void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double priestUR) {
     static double lastDR = -1, lastUR = -1;
     static int stuckFrames = 0;
     static int step = 0;
     static double targetDR = -1, targetUR = -1;
+    static int lastChangeFrame = 0;
+    
+    // 找市镇中心作为参考点
     int centerDR = -1, centerUR = -1;
     for (tagBuilding& b : info.buildings) {
         if (b.Type == BUILDING_CENTER) {
@@ -339,6 +370,8 @@ void UsrAI:: priestFindway(tagInfo& info,int priestSN,double priestDR,double pri
         }
     }
     if (centerDR == -1) return;
+    
+    // 检测卡住
     if (lastDR != -1 && lastUR != -1) {
         double moved = calDistance(lastDR, lastUR, priestDR, priestUR);
         if (moved < 0.3 * BLOCKSIDELENGTH) {
@@ -348,48 +381,54 @@ void UsrAI:: priestFindway(tagInfo& info,int priestSN,double priestDR,double pri
         }
     }
     lastDR = priestDR;
-    lastUR = priestUR;//检测是否卡住
+    lastUR = priestUR;
+    
+    // 检测到达
     bool reached = false;
     if (targetDR != -1 && targetUR != -1) {
         double d = calDistance(priestDR, priestUR, targetDR, targetUR);
         if (d < 2 * BLOCKSIDELENGTH) reached = true;
     }
-    if (stuckFrames > 5 || reached) {
+    
+    // 卡住、到达、超时 → 换方向
+    if (stuckFrames > 5 || reached || info.GameFrame - lastChangeFrame > 200) {
         step = (step + 1) % 4;
         targetDR = -1;
         targetUR = -1;
         stuckFrames = 0;
+        lastChangeFrame = info.GameFrame;
     }
+    
+    // 生成目标：以祭司当前位置为中心，逐渐向外扩展
     if (targetDR == -1 && targetUR == -1) {
-        int dist = 25;
+        // 探路距离随时间增加
+        int dist = 15 + (info.GameFrame / 6000) * 5;
+        if (dist > 30) dist = 30;
+        
+        int curBlockDR = (int)(priestDR / BLOCKSIDELENGTH);
+        int curBlockUR = (int)(priestUR / BLOCKSIDELENGTH);
+        
         switch (step) {
             case 0:
-                targetDR = blockToDetail(max(0, centerDR - dist));
-                targetUR = blockToDetail(centerUR);
+                targetDR = blockToDetail(max(0, curBlockDR - dist));
+                targetUR = blockToDetail(curBlockUR);
                 break;
             case 1:
-                targetDR = blockToDetail(min(MAP_SIZE - 1, centerDR + dist));
-                targetUR = blockToDetail(centerUR);
+                targetDR = blockToDetail(min(MAP_SIZE - 1, curBlockDR + dist));
+                targetUR = blockToDetail(curBlockUR);
                 break;
             case 2:
-                targetDR = blockToDetail(centerDR);
-                targetUR = blockToDetail(max(0, centerUR - dist));
+                targetDR = blockToDetail(curBlockDR);
+                targetUR = blockToDetail(max(0, curBlockUR - dist));
                 break;
             case 3:
-                targetDR = blockToDetail(centerDR);
-                targetUR = blockToDetail(min(MAP_SIZE - 1, centerUR + dist));
+                targetDR = blockToDetail(curBlockDR);
+                targetUR = blockToDetail(min(MAP_SIZE - 1, curBlockUR + dist));
                 break;
         }
-        int bDR = (int)(targetDR / BLOCKSIDELENGTH);
-        int bUR = (int)(targetUR / BLOCKSIDELENGTH);
-        if (bDR >= 0 && bDR < MAP_SIZE && bUR >= 0 && bUR < MAP_SIZE) {
-            if (terrainCache[bDR][bUR] != 0) {
-                step = (step + 1) % 4;
-                targetDR = -1;
-                targetUR = -1;
-            }
-        }
     }
+    
+    // 移动
     if (targetDR != -1 && targetUR != -1) {
         HumanMove(priestSN, targetDR, targetUR);
     }
@@ -407,12 +446,12 @@ void UsrAI::processData ()
      for(tagFarmer& f:info.farmers){
         if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
     }
-     int woodcutNum=farmercount/4;
-     int berrypickNum=farmercount/5;     
-     int huntNum=farmercount/8;
-     int buildNum=farmercount/5;
-     int stonedigNum=farmercount/10;
-     int minedigNum=farmercount/10;
+     int woodcutNum=max(farmercount/4, 1);
+     int berrypickNum=max(farmercount/5, 1);     
+     int huntNum=max(farmercount/8, 1);
+     int buildNum=max(farmercount/5, 1);
+     int stonedigNum=max(farmercount/10, 1);
+     int minedigNum=max(farmercount/10, 1);
      cutTree(info,woodcutNum,RESOURCE_TREE);
      cutTree(info,berrypickNum,RESOURCE_BUSH);
      cutTree(info,stonedigNum,RESOURCE_STONE);
