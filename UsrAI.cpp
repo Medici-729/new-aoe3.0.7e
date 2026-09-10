@@ -118,6 +118,20 @@ void  UsrAI::cutTree(tagInfo& info,int num,int resourceType) {
     if ((int)taskSN.size() != (int)info.farmers.size()) {
         taskSN.assign(info.farmers.size(), -1);
     }
+    for (auto i = 0; i < info.farmers.size(); i++) {
+        if (taskSN[i] == -1) continue;
+        if (info.farmers[i].Blood <= 0 || info.farmers[i].NowState == HUMAN_STATE_IDLE) {
+            taskSN[i] = -1;
+        }
+        bool exists = false;
+        for (tagResource& r : info.resources) {
+            if (r.SN == taskSN[i] && r.Type == resourceType && (r.Blood > 0 || r.Cnt > 0)) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) taskSN[i] = -1;
+    }
     int count=0;
     for (auto i = 0; i < info.farmers.size(); i++){
         tagFarmer& f = info.farmers[i];
@@ -149,6 +163,22 @@ void UsrAI:: hunting(tagInfo& info, int targetCount) {
     if (targetCount <= 0) return;
     if ((int)taskSN.size() != (int)info.farmers.size()) {
         taskSN.assign(info.farmers.size(), -1);
+    }
+    for (size_t i = 0; i < info.farmers.size(); i++) {
+        if (taskSN[i] == -1) continue;
+        if (info.farmers[i].Blood <= 0 || info.farmers[i].NowState == HUMAN_STATE_IDLE) {
+            taskSN[i] = -1;
+            continue;
+        }
+        bool exists = false;
+        for (tagResource& r : info.resources) {
+            if (r.SN == taskSN[i] && r.Type == RESOURCE_GAZELLE && 
+                (r.Blood > 0 || r.Cnt > 0)) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) taskSN[i] = -1;
     }
     int assigned = 0;
     vector<tagResource*> gazelles;
@@ -374,16 +404,16 @@ void UsrAI::processData ()
      updateTerrainCache(info);
      updateStage(info);
      priestManage(info);
-     int totalFarmer=0;
+     int farmercount=0;
      for(tagFarmer& f:info.farmers){
-        if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) totalFarmer++;
-     }
-     int woodcutNum=totalFarmer/4;
-     int berrypickNum=totalFarmer/5;     
-     int huntNum=totalFarmer/8;
-     int buildNum=totalFarmer/5;
-     int stonedigNum=totalFarmer/10;
-     int minedigNum=totalFarmer/10;
+        if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
+    }
+     int woodcutNum=farmercount/4;
+     int berrypickNum=farmercount/5;     
+     int huntNum=farmercount/8;
+     int buildNum=farmercount/5;
+     int stonedigNum=farmercount/10;
+     int minedigNum=farmercount/10;
      cutTree(info,woodcutNum,RESOURCE_TREE);
      cutTree(info,berrypickNum,RESOURCE_BUSH);
      cutTree(info,stonedigNum,RESOURCE_STONE);
@@ -412,10 +442,6 @@ void UsrAI::processData ()
         }
     }
     //市镇中心功能实现
-    int farmercount=0;
-    for(tagFarmer& f:info.farmers){
-        if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
-    }
     static bool hasUpgraded=false;
     for(tagBuilding& b:info.buildings){
         if(b.SN==centerSN&&b.Project==0){
@@ -450,7 +476,7 @@ void UsrAI::processData ()
         if (!hasStable && stage >= stageDefense1 && info.Wood >= 150&&hasArmyCamp) {
             buildBuilding(info, BUILDING_STABLE, 1);
         }
-        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180&&info.civilizationStage == CIVILIZATION_TOOLAGE) {
+        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180&&info.civilizationStage == BRONZEAGE) {
             buildBuilding(info, BUILDING_COLLAGE, 1);
         }
         if (info.Human_Num >= info.Human_MaxNum - 2 && info.Wood >= 30) {
@@ -474,7 +500,7 @@ void UsrAI::processData ()
     static bool hasFarmUp=false;
     static bool hasGoldUp=false;
     for(tagBuilding& b:info.buildings){
-        if(b.Type==BUILDING_MARKET&&b.project==0){
+        if(b.Type==BUILDING_MARKET&&b.Project==0){
             if(!hasWheel&&info.Meat>=150&&info.Wood>=100){
                 BuildingAction(b.SN, BUILDING_MARKET_WHEEL_UPGRADE);
                 hasWheel = true;
@@ -501,7 +527,7 @@ void UsrAI::processData ()
     static bool hasTool=false;
     static bool hasDefense=false;
     for(tagBuilding& b:info.buildings){
-        if(b.Type==BUILDING_STOCK&&b.project==0){
+        if(b.Type==BUILDING_STOCK&&b.Project==0){
             if(!hasTool&&info.Meat>=100){
               BuildingAction(b.SN, BUILDING_STOCK_UPGRADE_USETOOL);
               hasTool=true;
@@ -518,12 +544,12 @@ void UsrAI::processData ()
     static bool hasUpgradedClubman = false;
     if(stage>=stageDefense1){
         for(tagBuilding& b:info.buildings){
-            if(b.Type==BUILDING_ARMYCAMP&&b.project==0){
-                if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.Meat>=35&&info.Gold>=15&&info.HumanNum<info.Human_MaxNum){
+            if(b.Type==BUILDING_ARMYCAMP&&b.Project==0){
+                if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.Meat>=35&&info.Gold>=15&&info.Human_Num<info.Human_MaxNum){
                    BuildingAction(b.SN, BUILDING_ARMYCAMP_CREATE_BROADSWORD); 
                    continue;
                 }
-                if(info.Meat>=50&&info.HumanNum<info.Human_MaxNum){
+                if(info.Meat>=50&&info.Human_Num<info.Human_MaxNum){
                    BuildingAction(b.SN, BUILDING_ARMYCAMP_CREATE_CLUBMAN);
                    continue;
                 }
@@ -537,8 +563,8 @@ void UsrAI::processData ()
     }
     //靶场训练弓箭手
     for(tagBuilding& b:info.buildings){
-        if(b.Type==BUILDING_RANGE&&b.project==0){
-            if(info.HumanNum<info.Human_MaxNum&&info.Wood>=20&&info.Meat>=40){
+        if(b.Type==BUILDING_RANGE&&b.Project==0){
+            if(info.Human_Num<info.Human_MaxNum&&info.Wood>=20&&info.Meat>=40){
                 BuildingAction(b.SN, BUILDING_RANGE_CREATE_BOWMAN);
                 continue;
             }
@@ -547,12 +573,12 @@ void UsrAI::processData ()
     //马厩训练骑兵
     if(stage>=stageDefense2){
         for(tagBuilding& b:info.buildings){
-            if(b.Type==BUILDING_STABLE&&b.project==0){
-                if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.HumanNum<info.Human_MaxNum&&info.Meat>=70&&info.Gold>=80){
+            if(b.Type==BUILDING_STABLE&&b.Project==0){
+                if(info.civilizationStage>=CIVILIZATION_BRONZEAGE&&info.Human_Num<info.Human_MaxNum&&info.Meat>=70&&info.Gold>=80){
                     BuildingAction(b.SN, BUILDING_STABLE_CREATE_CAVALRY);
                     continue;
                 }
-                if(info.HumanNum<=info.Human_MaxNum&&info.Meat>=60){
+                if(info.Human_Num<=info.Human_MaxNum&&info.Meat>=60){
                     BuildingAction(b.SN, BUILDING_STABLE_CREATE_SCOUT);
                     continue;
                 }
@@ -561,8 +587,8 @@ void UsrAI::processData ()
     }
     if(stage>=stageDefense2){
         for(tagBuilding& b:info.buildings){
-            if(b.Type==BUILDING_COLLAGE&&b.project==0){
-                if(info.HumanNum<info.Human_MaxNum&&info.Meat>=60&&info.Gold>=40){
+            if(b.Type==BUILDING_COLLAGE&&b.Project==0){
+                if(info.Human_Num<info.Human_MaxNum&&info.Meat>=60&&info.Gold>=40){
                     BuildingAction(b.SN, BUILDING_COLLAGE_CREATE_HOPLITE);
                     continue;
                 }
