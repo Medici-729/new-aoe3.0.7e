@@ -18,6 +18,7 @@ ins UsrIns;
 #define stageAttack 4
 static int stage=1;
 static int terrainCache[MAP_SIZE][MAP_SIZE];
+static vector<int> taskSN;
 
 //距离计算函数
 double  UsrAI::calDistance(double dr1,double ur1,double dr2,double ur2){
@@ -114,11 +115,16 @@ void UsrAI::updateStage(tagInfo& info) {
 }
 //采集：砍树，采浆果，采金矿，挖石头
 void  UsrAI::cutTree(tagInfo& info,int num,int resourceType) {
+    if ((int)taskSN.size() != (int)info.farmers.size()) {
+        taskSN.assign(info.farmers.size(), -1);
+    }
     int count=0;
-    for(tagFarmer& f:info.farmers){
+    for (auto i = 0; i < info.farmers.size(); i++){
+        tagFarmer& f = info.farmers[i];
         if(f.FarmerSort!=FARMERTYPE_FARMER) continue;
         if(f.Blood<=0) continue;
         if(f.NowState!=HUMAN_STATE_IDLE) continue;
+        if (taskSN[i] != -1) continue;
         int targetSN=-1;
         double minDist=1e9;
         for(tagResource& r:info.resources){
@@ -133,6 +139,7 @@ void  UsrAI::cutTree(tagInfo& info,int num,int resourceType) {
         if(targetSN!=-1){
             HumanAction(f.SN,targetSN);
             count++;
+            taskSN[i] = targetSN;
         }
         if(count>=num) break;
     }    
@@ -140,6 +147,9 @@ void  UsrAI::cutTree(tagInfo& info,int num,int resourceType) {
 //打猎：羚羊
 void UsrAI:: hunting(tagInfo& info, int targetCount) {
     if (targetCount <= 0) return;
+    if ((int)taskSN.size() != (int)info.farmers.size()) {
+        taskSN.assign(info.farmers.size(), -1);
+    }
     int assigned = 0;
     vector<tagResource*> gazelles;
     for (tagResource& r : info.resources) {
@@ -148,10 +158,12 @@ void UsrAI:: hunting(tagInfo& info, int targetCount) {
         }
     }
     if (gazelles.empty()) return;
-    for (tagFarmer& f : info.farmers) {
+    for (size_t i = 0; i < info.farmers.size(); i++) {
+        tagFarmer& f=info.farmers[i];
         if (f.FarmerSort != FARMERTYPE_FARMER) continue;
         if (f.Blood <= 0) continue;
         if (f.NowState != HUMAN_STATE_IDLE) continue;
+        if (taskSN[i] != -1) continue;
         int targetSN = -1;
         double minDist = 1e9;
         for (tagResource* g : gazelles) {
@@ -160,6 +172,7 @@ void UsrAI:: hunting(tagInfo& info, int targetCount) {
         }
         if (targetSN == -1) return;
         HumanAction(f.SN, targetSN);
+        taskSN[i] = targetSN;
         assigned++;
         if (assigned >= targetCount) break;
     }
@@ -361,16 +374,83 @@ void UsrAI::processData ()
      updateTerrainCache(info);
      updateStage(info);
      priestManage(info);
-     int woodcutNum=2;
-     int berrypickNum=2;
-     int huntNum=2;
-     int buildNum=1;
-     int stonedigNum=1;
+     int totalFarmer=0;
+     for(tagFarmer& f:info.farmers){
+        if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) totalFarmer++;
+     }
+     int woodcutNum=totalFarmer/4;
+     int berrypickNum=totalFarmer/5;     
+     int huntNum=totalFarmer/8;
+     int buildNum=totalFarmer/5;
+     int stonedigNum=totalFarmer/10;
+     int minedigNum=totalFarmer/10;
      cutTree(info,woodcutNum,RESOURCE_TREE);
      cutTree(info,berrypickNum,RESOURCE_BUSH);
      cutTree(info,stonedigNum,RESOURCE_STONE);
+     cutTree(info,minedigNum,RESOURCE_GOLD);
      hunting(info, huntNum);
-     
-     
-
+     if(info.Human_MaxNum<20&&info.wood>=30){
+        buildBuilding(info,BUILDING_HOME,1);
+     }
+     bool homeenough=false;
+     if(info.Human_MaxNum>=20) homeenough=true;
+     bool hasMarket=false;
+     bool hasArmyCamp=false;
+     bool hasRange=false;
+     bool hasStable=false;
+     bool hasCollage=false;
+     int centerSN=-1;
+     for (tagBuilding& b : info.buildings) {
+        if (b.Percent < 100) continue;
+        switch (b.Type) {
+            case BUILDING_CENTER: centerSN = b.SN; break;
+            case BUILDING_MARKET: hasMarket = true; break;
+            case BUILDING_ARMYCAMP: hasArmyCamp = true; break;
+            case BUILDING_RANGE: hasRange = true; break;
+            case BUILDING_STABLE: hasStable = true; break;
+            case BUILDING_COLLAGE: hasCollage = true; break;
+        }
+    }
+    //市镇中心功能实现
+    if(info.Meat>=50&&info.Human_Num<info.Human_MaxNum&&info.Human_maxNum<=20){
+        for(tagBuilding& b:info.buildings){
+            if(b.SN==centerSN&&b.Project==0){
+                BuildingAction(centerSN,BUILDING_CENTER_CREATEFARMER);
+                break;
+            }
+        }
+    }
+    if (info.civilizationStage == CIVILIZATION_TOOLAGE && info.Meat >= 800){
+        if (hasMarket && (hasRange || hasStable)) {
+            for (tagBuilding& b : info.buildings) {
+                if (b.SN == centerSN && b.Project == 0) {
+                    BuildingAction(centerSN, BUILDING_CENTER_UPGRADE);
+                    break;
+                }
+            }
+        }
+    }
+    //建筑安排
+    if(homeenough==true){
+        if (!hasMarket && info.Wood >= 150) {
+            buildBuilding(info, BUILDING_MARKET, 1);
+        }
+        if (!hasArmyCamp && stage >= stageDefense1 && info.Wood >= 125) {
+            buildBuilding(info, BUILDING_ARMYCAMP, 1);
+        }
+        if (!hasRange && stage >= stageDefense1 && info.Wood >= 150) {
+            buildBuilding(info, BUILDING_RANGE, 1);
+        }
+        if (!hasStable && stage >= stageDefense1 && info.Wood >= 150) {
+            buildBuilding(info, BUILDING_STABLE, 1);
+        }
+        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180) {
+            buildBuilding(info, BUILDING_COLLAGE, 1);
+        }
+        if (info.Human_Num >= info.Human_MaxNum - 2 && info.Wood >= 30) {
+            buildBuilding(info, BUILDING_HOME, 1);
+        }  
+    }
+    //谷仓研发箭塔
+    
 }
