@@ -387,7 +387,6 @@ void UsrAI:: priestFindway(tagInfo& info,int priestSN,double priestDR,double pri
                 step = (step + 1) % 4;
                 targetDR = -1;
                 targetUR = -1;
-                return;
             }
         }
     }
@@ -476,7 +475,7 @@ void UsrAI::processData ()
         if (!hasStable && stage >= stageDefense1 && info.Wood >= 150&&hasArmyCamp) {
             buildBuilding(info, BUILDING_STABLE, 1);
         }
-        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180&&info.civilizationStage == BRONZEAGE) {
+        if (!hasCollage && stage >= stageDefense2 && info.Wood >= 180&&info.civilizationStage == CIVILIZATION_BRONZEAGE) {
             buildBuilding(info, BUILDING_COLLAGE, 1);
         }
         if (info.Human_Num >= info.Human_MaxNum - 2 && info.Wood >= 30) {
