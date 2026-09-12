@@ -484,12 +484,13 @@ void UsrAI::processData ()
      for(tagFarmer& f:info.farmers){
         if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
     }
-     int woodcutNum=max(farmercount/4, 1);
-     int berrypickNum=max(farmercount/5, 1);     
-     int huntNum=max(farmercount/8, 1);
-     int buildNum=max(farmercount/5, 1);
-     int stonedigNum=max(farmercount/10, 1);
-     int minedigNum=max(farmercount/10, 1);
+    int extra=farmerCount-8;
+     int woodcutNum=2+max(extra,0)*4/10;
+     int berrypickNum=1+max(extra,0)*1/10;     
+     int huntNum=2+max(extra,0)*2/10;
+     int buildNum=1+max(extra,0)*1/10;
+     int stonedigNum=1+max(extra,0)*1/10;
+     int minedigNum=1+max(extra,0)*1/10;
      cutTree(info,woodcutNum,RESOURCE_TREE,taskTree);
      cutTree(info,berrypickNum,RESOURCE_BUSH,taskBerry);
      cutTree(info,stonedigNum,RESOURCE_STONE,taskStone);
