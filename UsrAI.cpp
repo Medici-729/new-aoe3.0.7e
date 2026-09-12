@@ -165,8 +165,8 @@ void  UsrAI::cutTree(tagInfo& info,int num,int resourceType,vector<int>& task) {
 //打猎：羚羊
 void UsrAI:: hunting(tagInfo& info, int targetCount,vector<int>& task) {
     if (targetCount <= 0) return;
-    if ((int)taskSN.size() != (int)info.farmers.size()) {
-        taskSN.assign(info.farmers.size(), -1);
+    if ((int)task.size() != (int)info.farmers.size()) {
+        task.assign(info.farmers.size(), -1);
     }
     for (size_t i = 0; i < info.farmers.size(); i++) {
         if (task[i] == -1) continue;
@@ -493,7 +493,7 @@ void UsrAI::processData ()
      cutTree(info,minedigNum,RESOURCE_GOLD,taskGold);
      hunting(info, huntNum,taskHunt);
      if(info.Human_MaxNum<20&&info.Wood>=30){
-        buildBuilding(info,BUILDING_HOME,1);
+        buildBuilding(info,BUILDING_HOME,buildNum);
      }
      static bool homeenough=false;
      if(info.Human_MaxNum>=20) homeenough=true;

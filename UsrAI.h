@@ -36,8 +36,8 @@ private:
     void updateTerrainCache(tagInfo& info);
     bool findEmptyBlock(int& outDR, int& outUR, int size);
     void updateStage(tagInfo& info);
-    void cutTree(tagInfo& info, int num, int resourceType);
-    void hunting(tagInfo& info, int targetCount);
+    void cutTree(tagInfo& info, int num, int resourceType,vector<int>& task);
+    void hunting(tagInfo& info, int targetCount,vector<int>& task);
     void buildBuilding(tagInfo& info, int buildingType, int num);
     void armymanage(tagInfo& info);
     void arrowTower(tagInfo& info);
