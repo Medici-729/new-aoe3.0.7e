@@ -40,6 +40,7 @@ private:
     void hunting(tagInfo& info, int targetCount);
     void buildBuilding(tagInfo& info, int buildingType, int num);
     void armymanage(tagInfo& info);
+    void arrowTower(tagInfo& info);
     void priestManage(tagInfo& info);
     void priestFindway(tagInfo& info, int priestSN, double priestDR, double priestUR);
 };

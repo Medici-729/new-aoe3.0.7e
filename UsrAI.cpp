@@ -264,6 +264,28 @@ void UsrAI::armymanage(tagInfo& info){
         }
     }
 }
+//箭塔攻击
+void UsrAI::arrowTower(tagInfo& info){
+    for(tagBuilding& b:info.buildings){
+        if(b.TYpe==BUILDING_ARROWTOWER&&b.Percent==100&&b.Project==0){
+            double towerDR=blockToDetail(b.BlockDR);
+            double towerUR=blockToDetail(b.BlockUR);
+            int targetSN=-1;
+            double minDist = 1e9;
+            for (tagArmy& e : info.enemy_armies) {
+                if (e.Blood <= 0) continue;
+                double d = calDistance(towerDR, towerUR, e.DR, e.UR);
+                if (d < 7 * BLOCKSIDELENGTH && d < minDist) {
+                    minDist = d;
+                    targetSN = e.SN;
+                }
+            }
+            if(targetSN!=-1){
+                BuildingAction(b.SN,targetSN);
+            }
+        }
+    }
+}
 //祭司管理：转化敌人，躲避
 void UsrAI::priestManage(tagInfo& info) {
     // 1. 找祭司
@@ -354,24 +376,12 @@ void UsrAI::priestManage(tagInfo& info) {
 //祭司探路
 
 void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double priestUR) {
+    static int step = 0;                    // 当前方向：0=左, 1=右, 2=上, 3=下
     static double lastDR = -1, lastUR = -1;
     static int stuckFrames = 0;
-    static int step = 0;
     static double targetDR = -1, targetUR = -1;
-    static int lastChangeFrame = 0;
     
-    // 找市镇中心作为参考点
-    int centerDR = -1, centerUR = -1;
-    for (tagBuilding& b : info.buildings) {
-        if (b.Type == BUILDING_CENTER) {
-            centerDR = b.BlockDR;
-            centerUR = b.BlockUR;
-            break;
-        }
-    }
-    if (centerDR == -1) return;
-    
-    // 检测卡住
+    // 检测是否卡住（连续5帧位置几乎没变）
     if (lastDR != -1 && lastUR != -1) {
         double moved = calDistance(lastDR, lastUR, priestDR, priestUR);
         if (moved < 0.3 * BLOCKSIDELENGTH) {
@@ -383,48 +393,68 @@ void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double p
     lastDR = priestDR;
     lastUR = priestUR;
     
-    // 检测到达
-    bool reached = false;
-    if (targetDR != -1 && targetUR != -1) {
-        double d = calDistance(priestDR, priestUR, targetDR, targetUR);
-        if (d < 2 * BLOCKSIDELENGTH) reached = true;
-    }
-    
-    // 卡住、到达、超时 → 换方向
-    if (stuckFrames > 5 || reached || info.GameFrame - lastChangeFrame > 200) {
+    // 卡住超过5帧 → 换方向
+    if (stuckFrames > 5) {
         step = (step + 1) % 4;
         targetDR = -1;
         targetUR = -1;
         stuckFrames = 0;
-        lastChangeFrame = info.GameFrame;
     }
     
-    // 生成目标：以祭司当前位置为中心，逐渐向外扩展
+    // 到达目标 → 换方向
+    if (targetDR != -1 && targetUR != -1) {
+        double d = calDistance(priestDR, priestUR, targetDR, targetUR);
+        if (d < 2 * BLOCKSIDELENGTH) {
+            step = (step + 1) % 4;
+            targetDR = -1;
+            targetUR = -1;
+        }
+    }
+    
+    // 生成新目标（每次走一段距离）
     if (targetDR == -1 && targetUR == -1) {
-        // 探路距离随时间增加
-        int dist = 15 + (info.GameFrame / 6000) * 5;
-        if (dist > 30) dist = 30;
+        int dist = 20;  // 每次走20格
         
         int curBlockDR = (int)(priestDR / BLOCKSIDELENGTH);
         int curBlockUR = (int)(priestUR / BLOCKSIDELENGTH);
         
         switch (step) {
-            case 0:
+            case 0:  // 左
                 targetDR = blockToDetail(max(0, curBlockDR - dist));
                 targetUR = blockToDetail(curBlockUR);
                 break;
-            case 1:
+            case 1:  // 右
                 targetDR = blockToDetail(min(MAP_SIZE - 1, curBlockDR + dist));
                 targetUR = blockToDetail(curBlockUR);
                 break;
-            case 2:
+            case 2:  // 上
                 targetDR = blockToDetail(curBlockDR);
                 targetUR = blockToDetail(max(0, curBlockUR - dist));
                 break;
-            case 3:
+            case 3:  // 下
                 targetDR = blockToDetail(curBlockDR);
                 targetUR = blockToDetail(min(MAP_SIZE - 1, curBlockUR + dist));
                 break;
+        }
+        
+        // 检查目标是否在地图外或不可通行
+        int bDR = (int)(targetDR / BLOCKSIDELENGTH);
+        int bUR = (int)(targetUR / BLOCKSIDELENGTH);
+        if (bDR < 0 || bDR >= MAP_SIZE || bUR < 0 || bUR >= MAP_SIZE) {
+            // 目标出界，换方向
+            step = (step + 1) % 4;
+            targetDR = -1;
+            targetUR = -1;
+            return;
+        }
+        
+        // 检查目标位置是否可通行（地形缓存）
+        if (terrainCache[bDR][bUR] != 0) {
+            // 目标被占用，换方向
+            step = (step + 1) % 4;
+            targetDR = -1;
+            targetUR = -1;
+            return;
         }
     }
     
@@ -442,6 +472,7 @@ void UsrAI::processData ()
      updateTerrainCache(info);
      updateStage(info);
      priestManage(info);
+     arrowTower(info)
      int farmercount=0;
      for(tagFarmer& f:info.farmers){
         if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
