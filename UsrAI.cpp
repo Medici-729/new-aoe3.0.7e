@@ -18,11 +18,12 @@ ins UsrIns;
 #define stageAttack 4
 static int stage=1;
 static int terrainCache[MAP_SIZE][MAP_SIZE];
-static vector<int> taskTree;    // 砍树
-static vector<int> taskBerry;   // 采浆果
-static vector<int> taskStone;   // 挖石头
-static vector<int> taskGold;    // 挖黄金
-static vector<int> taskHunt;    // 打猎
+static vector<int> taskTree; 
+static vector<int> taskBerry; 
+static vector<int> taskStone;   
+static vector<int> taskGold;    
+static vector<int> taskHunt;   
+static vector<int> taskBuild;
 
 //距离计算函数
 double  UsrAI::calDistance(double dr1,double ur1,double dr2,double ur2){
@@ -213,19 +214,35 @@ void UsrAI:: hunting(tagInfo& info, int targetCount,vector<int>& task) {
 }
 //建筑：市镇中心，谷仓，市场，农田，兵营、靶场 、马厩
 void UsrAI:: buildBuilding(tagInfo& info,int buildingType,int num){
-    int size=3;
-    if(buildingType==BUILDING_HOME||buildingType==BUILDING_ARROWTOWER) size=2;
-    int currentCount=0;
-    int buildDR,buildUR;
-    if(!findEmptyBlock(buildDR,buildUR,size))  return;
-    for(tagFarmer& f:info.farmers){
-        if(f.FarmerSort!=FARMERTYPE_FARMER) continue;
-        if(f.Blood<=0) continue;
-        if(f.NowState!=HUMAN_STATE_IDLE) continue;
+   if ((int)taskBuild.size() != (int)info.farmers.size()) {
+        taskBuild.assign(info.farmers.size(), -1);
+    }
+    for (size_t i = 0; i < info.farmers.size(); i++) {
+        if (taskBuild[i] == -1) continue;
+        if (info.farmers[i].Blood <= 0 || info.farmers[i].NowState == HUMAN_STATE_IDLE) {
+            taskBuild[i] = -1;
+        }
+    }
+    int currentCount = 0;
+    for (size_t i = 0; i < info.farmers.size(); i++) {
+        if (taskBuild[i] != -1) currentCount++;
+    }
+    if (currentCount >= num) return; 
+    int size = 3;
+    if (buildingType == BUILDING_HOME || buildingType == BUILDING_ARROWTOWER) size = 2;
+    int buildDR, buildUR;
+    if (!findEmptyBlock(buildDR, buildUR, size)) return;
+    for (size_t i = 0; i < info.farmers.size(); i++) {
+        tagFarmer& f = info.farmers[i];
+        if (f.FarmerSort != FARMERTYPE_FARMER) continue;
+        if (f.Blood <= 0) continue;
+        if (f.NowState != HUMAN_STATE_IDLE) continue;
+        if (taskBuild[i] != -1) continue; 
+        HumanBuild(f.SN, buildingType, buildDR, buildUR);
+        taskBuild[i] = 1;  
         currentCount++;
-        if(currentCount>num) break;
-        HumanBuild(f.SN,buildingType,buildDR,buildUR);
-     }
+        if (currentCount >= num) break;
+    }
 }
 //军队管理
 void UsrAI::armymanage(tagInfo& info){
@@ -484,7 +501,7 @@ void UsrAI::processData ()
      for(tagFarmer& f:info.farmers){
         if(f.FarmerSort==FARMERTYPE_FARMER&&f.Blood>0) farmercount++;
     }
-    int extra=farmerCount-8;
+     int extra=farmercount-8;
      int woodcutNum=2+max(extra,0)*4/10;
      int berrypickNum=1+max(extra,0)*1/10;     
      int huntNum=2+max(extra,0)*2/10;
