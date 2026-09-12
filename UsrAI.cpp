@@ -380,89 +380,83 @@ void UsrAI::priestManage(tagInfo& info) {
 //祭司探路
 
 void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double priestUR) {
-    static int step = 0;                    // 当前方向：0=左, 1=右, 2=上, 3=下
-    static double lastDR = -1, lastUR = -1;
+    static double refDR = -1, refUR = -1;
     static int stuckFrames = 0;
+    static int step = 0;
     static double targetDR = -1, targetUR = -1;
+    static int lastChangeFrame = 0;
     
-    // 检测是否卡住（连续5帧位置几乎没变）
-    if (lastDR != -1 && lastUR != -1) {
-        double moved = calDistance(lastDR, lastUR, priestDR, priestUR);
-        if (moved < 0.3 * BLOCKSIDELENGTH) {
-            stuckFrames++;
-        } else {
-            stuckFrames = 0;
-        }
+    // 1. 卡住检测（累计位移）
+    if (refDR < 0) {
+        refDR = priestDR;
+        refUR = priestUR;
     }
-    lastDR = priestDR;
-    lastUR = priestUR;
+    double moved = calDistance(refDR, refUR, priestDR, priestUR);
+    if (moved > 1.0 * BLOCKSIDELENGTH) {
+        refDR = priestDR;
+        refUR = priestUR;
+        stuckFrames = 0;
+    } else {
+        stuckFrames++;
+    }
     
-    // 卡住超过5帧 → 换方向
-    if (stuckFrames > 5) {
+    // 2. 到达检测
+    bool reached = false;
+    if (targetDR != -1 && targetUR != -1) {
+        double d = calDistance(priestDR, priestUR, targetDR, targetUR);
+        if (d < 1 * BLOCKSIDELENGTH) reached = true;
+    }
+    
+    // 3. 卡住/到达/超时 → 换方向
+    if (stuckFrames > 10 || reached || info.GameFrame - lastChangeFrame > 300) {
         step = (step + 1) % 4;
         targetDR = -1;
         targetUR = -1;
         stuckFrames = 0;
+        lastChangeFrame = info.GameFrame;
     }
     
-    // 到达目标 → 换方向
-    if (targetDR != -1 && targetUR != -1) {
-        double d = calDistance(priestDR, priestUR, targetDR, targetUR);
-        if (d < 2 * BLOCKSIDELENGTH) {
-            step = (step + 1) % 4;
-            targetDR = -1;
-            targetUR = -1;
-        }
-    }
-    
-    // 生成新目标（每次走一段距离）
+    // 4. 生成目标（尝试最多4个方向）
     if (targetDR == -1 && targetUR == -1) {
-        int dist = 20;  // 每次走20格
-        
+        int dist = 4;
         int curBlockDR = (int)(priestDR / BLOCKSIDELENGTH);
         int curBlockUR = (int)(priestUR / BLOCKSIDELENGTH);
         
-        switch (step) {
-            case 0:  // 左
-                targetDR = blockToDetail(max(0, curBlockDR - dist));
-                targetUR = blockToDetail(curBlockUR);
+        for (int attempt = 0; attempt < 4; attempt++) {
+            double tDR = -1, tUR = -1;
+            switch (step) {
+                case 0:
+                    tDR = blockToDetail(max(0, curBlockDR - dist));
+                    tUR = blockToDetail(curBlockUR);
+                    break;
+                case 1:
+                    tDR = blockToDetail(min(MAP_SIZE - 1, curBlockDR + dist));
+                    tUR = blockToDetail(curBlockUR);
+                    break;
+                case 2:
+                    tDR = blockToDetail(curBlockDR);
+                    tUR = blockToDetail(max(0, curBlockUR - dist));
+                    break;
+                case 3:
+                    tDR = blockToDetail(curBlockDR);
+                    tUR = blockToDetail(min(MAP_SIZE - 1, curBlockUR + dist));
+                    break;
+            }
+            
+            int bDR = (int)(tDR / BLOCKSIDELENGTH);
+            int bUR = (int)(tUR / BLOCKSIDELENGTH);
+            if (bDR >= 0 && bDR < MAP_SIZE && bUR >= 0 && bUR < MAP_SIZE
+                && terrainCache[bDR][bUR] == 0) {
+                targetDR = tDR;
+                targetUR = tUR;
                 break;
-            case 1:  // 右
-                targetDR = blockToDetail(min(MAP_SIZE - 1, curBlockDR + dist));
-                targetUR = blockToDetail(curBlockUR);
-                break;
-            case 2:  // 上
-                targetDR = blockToDetail(curBlockDR);
-                targetUR = blockToDetail(max(0, curBlockUR - dist));
-                break;
-            case 3:  // 下
-                targetDR = blockToDetail(curBlockDR);
-                targetUR = blockToDetail(min(MAP_SIZE - 1, curBlockUR + dist));
-                break;
-        }
-        
-        // 检查目标是否在地图外或不可通行
-        int bDR = (int)(targetDR / BLOCKSIDELENGTH);
-        int bUR = (int)(targetUR / BLOCKSIDELENGTH);
-        if (bDR < 0 || bDR >= MAP_SIZE || bUR < 0 || bUR >= MAP_SIZE) {
-            // 目标出界，换方向
-            step = (step + 1) % 4;
-            targetDR = -1;
-            targetUR = -1;
-            return;
-        }
-        
-        // 检查目标位置是否可通行（地形缓存）
-        if (terrainCache[bDR][bUR] != 0) {
-            // 目标被占用，换方向
-            step = (step + 1) % 4;
-            targetDR = -1;
-            targetUR = -1;
-            return;
+            } else {
+                step = (step + 1) % 4;
+            }
         }
     }
     
-    // 移动
+    // 5. 移动
     if (targetDR != -1 && targetUR != -1) {
         HumanMove(priestSN, targetDR, targetUR);
     }
