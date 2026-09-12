@@ -385,6 +385,7 @@ void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double p
     static int step = 0;
     static double targetDR = -1, targetUR = -1;
     static int lastChangeFrame = 0;
+    static double lastTargetDR = -1, lastTargetUR = -1;
     
     // 1. 卡住检测（累计位移）
     if (refDR < 0) {
@@ -400,15 +401,15 @@ void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double p
         stuckFrames++;
     }
     
-    // 2. 到达检测
+    // 2. 到达检测（放宽到2格）
     bool reached = false;
     if (targetDR != -1 && targetUR != -1) {
         double d = calDistance(priestDR, priestUR, targetDR, targetUR);
-        if (d < 1 * BLOCKSIDELENGTH) reached = true;
+        if (d < 2 * BLOCKSIDELENGTH) reached = true;
     }
     
     // 3. 卡住/到达/超时 → 换方向
-    if (stuckFrames > 10 || reached || info.GameFrame - lastChangeFrame > 300) {
+    if (stuckFrames > 3 || reached || info.GameFrame - lastChangeFrame > 100) {
         step = (step + 1) % 4;
         targetDR = -1;
         targetUR = -1;
@@ -447,6 +448,12 @@ void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double p
             int bUR = (int)(tUR / BLOCKSIDELENGTH);
             if (bDR >= 0 && bDR < MAP_SIZE && bUR >= 0 && bUR < MAP_SIZE
                 && terrainCache[bDR][bUR] == 0) {
+                // 检查是否和上次目标一样
+                if (tDR == lastTargetDR && tUR == lastTargetUR) {
+                    // 一样，换方向
+                    step = (step + 1) % 4;
+                    continue;
+                }
                 targetDR = tDR;
                 targetUR = tUR;
                 break;
@@ -458,6 +465,8 @@ void UsrAI::priestFindway(tagInfo& info, int priestSN, double priestDR, double p
     
     // 5. 移动
     if (targetDR != -1 && targetUR != -1) {
+        lastTargetDR = targetDR;
+        lastTargetUR = targetUR;
         HumanMove(priestSN, targetDR, targetUR);
     }
 }
